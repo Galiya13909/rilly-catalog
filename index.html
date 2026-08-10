@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RILLY — Прайс-каталог</title>
+    
+    <!-- Подключаем CSS -->
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+    <!-- ВИДЕОФОН -->
+    <div class="video-header">
+        <video autoplay muted loop playsinline>
+            <source src="promo.mp4" type="video/mp4" />
+            Ваш браузер не поддерживает видео.
+        </video>
+        <div class="video-overlay">
+            <h1>🧼 RILLY</h1>
+            <p>Полный прайс-каталог · Выберите товары и оформите заказ</p>
+            <p style="margin-top: 6px; font-size: clamp(12px, 1.4vw, 16px);">
+                📩 Заказы отправляйте на <span class="email">ufa@rilly.ru</span> · 🌐 <a href="https://rilly.ru" target="_blank">rilly.ru</a>
+            </p>
+        </div>
+        <button class="admin-login-btn" id="adminToggleBtn">🔐 Вход</button>
+    </div>
+
+    <!-- НАВИГАЦИЯ -->
+    <div class="nav-bar">
+        <a href="#kids" class="nav-btn">🧸 RILLY Kids</a>
+        <a href="#body" class="nav-btn">🛁 Губки тела</a>
+        <a href="#lappy" class="nav-btn">⚪ LAPPY</a>
+        <a href="#tressy" class="nav-btn">🧴 TRESSY/TRIO</a>
+        <a href="#terry" class="nav-btn">🧴 TERRY/BIGGY</a>
+        <a href="#teflon" class="nav-btn">🧽 Teflon</a>
+        <a href="#oval" class="nav-btn">🥚 OVAL</a>
+        <a href="#loty" class="nav-btn">🍀 LOTY</a>
+        <a href="#rubby" class="nav-btn">🔴 RUBBY</a>
+        <a href="#other_dishes" class="nav-btn">🍽️ Прочие губки</a>
+        <a href="#car" class="nav-btn">🚗 Авто</a>
+        <a href="#bath" class="nav-btn">🛁 Ванна</a>
+        <a href="#cloths" class="nav-btn">🧹 Салфетки</a>
+        <a href="#other" class="nav-btn">🧴 Ватные палочки</a>
+        <a href="#rope" class="nav-btn">🧵 Веревка</a>
+    </div>
+
+    <!-- АДМИН-ПАНЕЛЬ -->
+    <div class="admin-panel" id="adminPanel">
+        <h2>⚙️ Администрирование каталога</h2>
+        <div class="admin-toolbar">
+            <button class="add-product-btn" id="addProductBtn">➕ Добавить новый товар</button>
+            <button class="add-product-btn" id="addPromotionBtn">🏷️ Добавить акцию</button>
+            <button class="add-product-btn" id="importProductsBtn" style="display:none;">📥 Загрузить исходные товары в базу</button>
+        </div>
+        <p style="margin-top: 12px; color: #5a7e8f; font-size: 14px;">
+            ℹ️ Товары и акции теперь хранятся в общей базе. Для редактирования товара используйте ✏️ на карточке.
+        </p>
+        <div id="promotionAdminList" class="promotion-admin-list"></div>
+    </div>
+
+    <!-- КАТАЛОГ -->
+    <div class="container" id="catalogContainer"></div>
+
+    <!-- ФУТЕР -->
+    <div class="footer">
+        <strong>RILLY</strong> · 2026 · Все цены указаны с НДС · 📩 ufa@rilly.ru
+    </div>
+
+
+    <!-- МОДАЛЬНОЕ ОКНО АКЦИИ -->
+    <div class="modal" id="promotionModal">
+        <div class="modal-content">
+            <h2>🏷️ Акция</h2>
+            <form id="promotionForm">
+                <input type="hidden" id="promotionEditIndex" value="-1" />
+
+                <label>Название акции:</label>
+                <input type="text" id="promotionName" placeholder="Например: Оптовая цена AIRY" />
+
+                <label>Товар:</label>
+                <select id="promotionProduct">
+                    <option value="">🌐 Все товары</option>
+                </select>
+
+                <label>Тип акции:</label>
+                <select id="promotionType">
+                    <option value="percent">📉 Скидка в процентах</option>
+                    <option value="fixed">💰 Фиксированная цена</option>
+                </select>
+
+                <div id="percentField">
+                    <label>Скидка (%):</label>
+                    <input type="number" id="promotionPercent" min="0.01" max="99.99" step="0.01" placeholder="12.5" />
+                </div>
+
+                <div id="fixedField" style="display:none;">
+                    <label>Цена по акции (руб/шт):</label>
+                    <input type="number" id="promotionFixed" min="0" step="0.01" placeholder="35.00" />
+                </div>
+
+                <label>Минимальное количество (необязательно):</label>
+                <input type="number" id="promotionMinQty" min="0" step="1" placeholder="5000" />
+
+                <label>Условие (необязательно):</label>
+                <input type="text" id="promotionCondition" placeholder="При заказе от 5000 шт." />
+
+                <label style="display:flex;align-items:center;gap:8px;flex-direction:row;">
+                    <input type="checkbox" id="promotionActive" checked style="width:auto;"> Акция активна
+                </label>
+
+                <div class="modal-actions">
+                    <button type="button" class="cancel-btn" id="promotionCancelBtn">Отмена</button>
+                    <button type="submit" class="save-btn">💾 Сохранить акцию</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- КНОПКА КОРЗИНЫ -->
+    <button class="cart-toggle-btn" id="cartToggleBtn">
+        🛒 Корзина <span class="badge" id="cartBadge">0</span>
+    </button>
+
+    <!-- ПАНЕЛЬ КОРЗИНЫ -->
+    <div class="cart-panel" id="cartPanel">
+        <div class="cart-header">
+            <h3>🛒 Корзина <span class="cart-count" id="cartCount">0</span></h3>
+            <span class="cart-total" id="cartTotalPrice">0 ₽</span>
+            <button class="cart-close" id="cartCloseBtn">✕</button>
+        </div>
+        <div class="cart-items" id="cartItems">
+            <p style="color: #5a7e8f; text-align: center; padding: 40px 0;">Корзина пуста. Добавьте товары!</p>
+        </div>
+        <div class="cart-footer">
+            <div class="cart-summary">
+                <div>Товаров: <strong id="cartTotalItems">0</strong> шт.</div>
+                <div>На сумму: <span class="total-price" id="cartTotalPriceFooter">0 ₽</span></div>
+            </div>
+            <div class="cart-actions">
+                <button class="btn-clear-cart" id="clearCartBtn">🗑️ Очистить</button>
+                <button class="btn-checkout" id="checkoutBtn">📥 Сформировать заказ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ РЕДАКТИРОВАНИЯ -->
+    <div class="modal" id="productModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Редактирование товара</h2>
+            <form id="productForm">
+                <input type="hidden" id="editIndex" value="-1" />
+
+                <label>Категория:</label>
+                <select id="editCategory" required>
+                    <option value="kids">🧸 RILLY Kids</option>
+                    <option value="body">🛁 Губки тела</option>
+                    <option value="lappy">⚪ LAPPY</option>
+                    <option value="tressy">🧴 TRESSY/TRIO</option>
+                    <option value="terry">🧴 TERRY/BIGGY</option>
+                    <option value="teflon">🧽 Teflon</option>
+                    <option value="oval">🥚 OVAL</option>
+                    <option value="loty">🍀 LOTY</option>
+                    <option value="rubby">🔴 RUBBY</option>
+                    <option value="other_dishes">🍽️ Прочие губки</option>
+                    <option value="car">🚗 Авто</option>
+                    <option value="bath">🛁 Ванна</option>
+                    <option value="cloths">🧹 Салфетки</option>
+                    <option value="other">🧴 Ватные палочки</option>
+                    <option value="rope">🧵 Веревка</option>
+                </select>
+
+                <label>Код товара:</label>
+                <input type="text" id="editCode" required placeholder="например: 00426" />
+
+                <label>Название:</label>
+                <input type="text" id="editName" required placeholder="например: Губка для купания детская RILLY Kids*160" />
+
+                <label>Цена (руб):</label>
+                <input type="number" id="editPrice" required step="0.01" placeholder="56.44" />
+
+                <label>Штук в коробке:</label>
+                <input type="number" id="editPack" required step="1" placeholder="160" />
+
+                <label>Штрих-код:</label>
+                <input type="text" id="editShk" required placeholder="4603749450394" />
+
+                <label>Артикул:</label>
+                <input type="text" id="editArt" required placeholder="ГДКМАХRIL1ШТ" />
+
+                <label>Размер/описание:</label>
+                <input type="text" id="editSize" required placeholder="130×80×35 мм" />
+
+                <div class="modal-actions">
+                    <button type="button" class="delete-btn-modal" id="deleteProductBtn" style="display:none;">🗑️ Удалить</button>
+                    <button type="button" class="cancel-btn" id="modalCancelBtn">Отмена</button>
+                    <button type="submit" class="save-btn">💾 Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ КАРТОЧКИ (при нажатии) -->
+    <div class="card-modal" id="cardModal">
+        <div class="card-modal-content">
+            <button class="modal-close" id="cardModalClose">✕</button>
+            <div class="modal-photo" id="cardModalPhoto">
+                <img src="" alt="Фото товара" id="cardModalImg" />
+            </div>
+            <div class="modal-info">
+                <div class="modal-title" id="cardModalTitle"></div>
+                <div class="modal-details" id="cardModalDetails"></div>
+                <div class="modal-price" id="cardModalPrice"></div>
+                <div class="modal-art-shk" id="cardModalArtShk"></div>
+                <div style="margin-top:12px; padding-top:12px; border-top:1px solid #ede7e2;">
+                    <p style="color:#8a7a6e; font-size:14px;">📦 В коробке: <span id="cardModalPack" style="font-weight:600; color:#4a3f3a;"></span> шт</p>
+                    <p style="color:#8a7a6e; font-size:14px; margin-top:4px;">💳 Цена за штуку: <span id="cardModalPricePerPiece" style="font-weight:600; color:#8fb5a0;"></span> ₽</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключаем JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/products.js"></script>
+    <script src="js/cart.js"></script>
+    <script src="js/promotions.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/catalog.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
