@@ -28,7 +28,10 @@ function renderCatalog() {
 
             // Открытие карточки при клике
             card.addEventListener('click', function(e) {
-                if (e.target.closest('button') || e.target.closest('.card-actions')) return;
+                // Не открываем модальное окно товара при работе с
+                // количеством, переключателем коробки/штуки и другими
+                // интерактивными элементами карточки.
+                if (e.target.closest('button, input, select, textarea, label, .card-actions, .order-row')) return;
                 openCardModal(globalIndex);
             });
 
@@ -109,14 +112,6 @@ if (img && lens && !img.hasAttribute('data-zoom-initialized')) {
             priceDiv.className = 'price';
             priceDiv.textContent = p.price.toFixed(2) + ' ₽ / шт';
             infoDiv.appendChild(priceDiv);
-
-            const displayPromotion = getDisplayPromotionForProduct(p);
-            if (displayPromotion) {
-                const promoDiv = document.createElement('div');
-                promoDiv.className = 'promotion-badge';
-                promoDiv.innerHTML = `🏷️ ${promotionLabel(p, displayPromotion)}`;
-                infoDiv.appendChild(promoDiv);
-            }
 
             const artShk = document.createElement('div');
             artShk.className = 'art-shk';
@@ -295,10 +290,7 @@ function openCardModal(index) {
     };
     document.getElementById('cardModalTitle').textContent = product.name;
     document.getElementById('cardModalDetails').textContent = product.size || 'Нет данных';
-    const modalPromotion = getDisplayPromotionForProduct(product);
-    document.getElementById('cardModalPrice').innerHTML = modalPromotion
-        ? `<span style="text-decoration:line-through;opacity:.55;">${product.price.toFixed(2)} ₽ / шт</span><br><strong>${modalPromotion.salePrice.toFixed(2)} ₽ / шт</strong><br><small>Экономия ${modalPromotion.savingPercent}%${Number(modalPromotion.min_quantity || 0) > 0 ? ` · от ${Number(modalPromotion.min_quantity).toLocaleString('ru-RU')} шт.` : ''}</small>`
-        : product.price.toFixed(2) + ' ₽ / шт';
+    document.getElementById('cardModalPrice').textContent = product.price.toFixed(2) + ' ₽ / шт';
     document.getElementById('cardModalPack').textContent = product.pack;
     document.getElementById('cardModalPricePerPiece').textContent = product.price.toFixed(2);
     document.getElementById('cardModalArtShk').innerHTML = `
@@ -337,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('clearCartBtn').addEventListener('click', function() {
         if (cart.length === 0) return;
         if (confirm('Очистить корзину?')) {
-            cart.length = 0;
+            cart = [];
             saveCart();
             renderCatalog();
         }
@@ -350,30 +342,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const rows = [
-            ['Код товара', 'Наименование', 'Цена без скидки (руб)', 'Скидка', 'Цена по акции (руб)', 'Количество (шт)', 'Штук в коробке', 'Сумма (руб)']
+            ['Код товара', 'Наименование', 'Цена за шт (руб)', 'Количество (шт)', 'Штук в коробке', 'Сумма (руб)']
         ];
         let totalSum = 0;
 
         cart.forEach(item => {
-            const pricing = getCartPricing(item);
-            const sum = item.qty * pricing.salePrice;
+            const sum = item.qty * item.price;
             totalSum += sum;
-            const discount = pricing.promotion ? `${pricing.promotion.savingPercent}%` : '';
             rows.push([
                 item.code || '',
                 item.name || '',
-                pricing.basePrice.toFixed(2),
-                discount,
-                pricing.salePrice.toFixed(2),
+                item.price.toFixed(2),
                 item.qty,
-                pricing.product.pack,
+                item.pack,
                 sum.toFixed(2)
             ]);
         });
 
-        rows.push(['Итого', '', '', '', '', '', '', totalSum.toFixed(2)]);
+        rows.push(['Итого', '', '', '', '', totalSum.toFixed(2)]);
 
-        rows.push([]);
         rows.push([]);
         rows.push(['Дата заказа:', new Date().toLocaleString()]);
         rows.push(['Всего позиций:', cart.length]);
