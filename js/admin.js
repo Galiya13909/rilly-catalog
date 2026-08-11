@@ -463,9 +463,23 @@ function closePromotionModal() { document.getElementById('promotionModal').class
 
 function updatePromotionFields() {
     const kind = document.getElementById('promotionKind').value;
-    document.getElementById('priceTypeFields').style.display = kind === 'price' ? 'block' : 'none';
-    document.getElementById('giftTypeFields').style.display = kind === 'gift' ? 'block' : 'none';
-    document.getElementById('priceMinQtyField').style.display = kind === 'price' ? 'block' : 'none';
+    const type = document.getElementById('promotionType')?.value || 'percent';
+
+    const priceTypeFields = document.getElementById('priceTypeFields');
+    const percentField = document.getElementById('percentField');
+    const fixedField = document.getElementById('fixedField');
+    const giftTypeFields = document.getElementById('giftTypeFields');
+    const priceMinQtyField = document.getElementById('priceMinQtyField');
+
+    // Показываем блоки, относящиеся к выбранному типу предложения.
+    if (priceTypeFields) priceTypeFields.style.display = kind === 'price' ? 'block' : 'none';
+    if (giftTypeFields) giftTypeFields.style.display = kind === 'gift' ? 'block' : 'none';
+    if (priceMinQtyField) priceMinQtyField.style.display = kind === 'price' ? 'block' : 'none';
+
+    // Для спеццены показываем только одно поле: процент ИЛИ фиксированную цену.
+    if (percentField) percentField.style.display = (kind === 'price' && type === 'percent') ? 'block' : 'none';
+    if (fixedField) fixedField.style.display = (kind === 'price' && type === 'fixed') ? 'block' : 'none';
+
     const details = document.getElementById('promotionDetails');
     if (details && kind === 'repeat_info' && !details.value) {
         details.value = 'Скидка 10% от прайсовой цены на повторный заказ. Минимальный объём — 4 000 шт. Срок действия — 3 месяца с даты первого заказа.';
