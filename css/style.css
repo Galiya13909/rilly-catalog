@@ -1266,3 +1266,117 @@ body {
     .promotion-card { padding: 17px; }
     .promotion-date-row { grid-template-columns: 1fr; }
 }
+
+/* ----- Удобный выбор товаров для акции ----- */
+#promotionProductPicker {
+    margin-top: 8px;
+    border: 1px solid #d7e5eb;
+    border-radius: 16px;
+    background: #f8fbfc;
+    overflow: hidden;
+}
+.promotion-picker-top {
+    padding: 12px;
+    background: #fff;
+    border-bottom: 1px solid #d7e5eb;
+}
+.promotion-picker-search-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.promotion-picker-search {
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.promotion-selected-count {
+    flex: 0 0 auto;
+    color: #176b55;
+    font-size: 13px;
+    font-weight: 700;
+}
+.promotion-picker-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 9px;
+    flex-wrap: wrap;
+}
+.picker-action-btn,
+.promotion-category-btn {
+    border: 1px solid #cfe0e7;
+    background: #f3f8fa;
+    color: #24566b;
+    border-radius: 999px;
+    padding: 7px 12px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    transition: .15s ease;
+}
+.picker-action-btn:hover,
+.promotion-category-btn:hover {
+    background: #e7f3f7;
+}
+.promotion-category-filters {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-top: 9px;
+}
+.promotion-category-btn.active {
+    background: #0b6d89;
+    border-color: #0b6d89;
+    color: #fff;
+}
+.promotion-product-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 8px;
+}
+.promotion-product-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    margin: 0;
+    transition: background .12s ease;
+}
+.promotion-product-option:hover {
+    background: #eaf4f7;
+}
+.promotion-product-option input {
+    flex: 0 0 auto;
+    width: 18px !important;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: #188a63;
+}
+.promotion-product-option-text {
+    display: block;
+    color: #264b5b;
+    font-size: 14px;
+    line-height: 1.3;
+}
+.promotion-product-option-text small {
+    display: block;
+    color: #76909d;
+    margin-top: 2px;
+    font-size: 12px;
+}
+.promotion-picker-empty {
+    padding: 25px 12px;
+    text-align: center;
+    color: #718a95;
+}
+@media (max-width: 650px) {
+    .promotion-picker-search-row {
+        display: block;
+    }
+    .promotion-selected-count {
+        display: block;
+        margin-top: 7px;
+    }
+}
