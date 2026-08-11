@@ -1,7 +1,97 @@
+
+function renderPromotionsCatalog() {
+    const container = document.getElementById('promotionsCatalog');
+    if (!container) return;
+    const active = getCatalogPromotions();
+
+    if (!active.length) {
+        container.innerHTML = '';
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    const cards = active.map((p, idx) => {
+        const participants = getPromotionParticipants(p);
+        const participantNames = participants.slice(0, 5).map(x => x.name).join(' · ');
+        const more = participants.length > 5 ? ` + ещё ${participants.length - 5}` : '';
+        const details = p.details_text || p.condition_text || '';
+        const dateText = p.start_date || p.end_date
+            ? `${p.start_date ? new Date(p.start_date + 'T00:00:00').toLocaleDateString('ru-RU') : 'сейчас'}${p.end_date ? ` — ${new Date(p.end_date + 'T00:00:00').toLocaleDateString('ru-RU')}` : ''}`
+            : '';
+        let accent = 'price';
+        let headline = promotionShortText(p);
+        if (p.promotion_type === 'gift') {
+            accent = 'gift';
+            headline = `${Number(p.min_quantity || 0).toLocaleString('ru-RU')} шт. → подарок ${Number(p.min_quantity || 0) ? Math.floor(Number(p.min_quantity) / Number(p.gift_every || 20)) : ''} шт.`;
+        } else if (p.promotion_type === 'repeat_info') {
+            accent = 'repeat';
+            headline = '10% на повторный заказ';
+        } else if (p.promotion_type === 'info') {
+            accent = 'info';
+        }
+        return `<article class="promotion-card promotion-card-${accent}">
+            <div class="promotion-card-icon">${p.promotion_type === 'gift' ? '🎁' : p.promotion_type === 'repeat_info' ? '🔄' : p.promotion_type === 'info' ? 'ℹ️' : '🏷️'}</div>
+            <div class="promotion-card-body">
+                <div class="promotion-card-type">${promotionTypeLabel(p)}</div>
+                <h3>${escapeHtml(p.name || 'Спецпредложение')}</h3>
+                <div class="promotion-card-headline">${escapeHtml(headline)}</div>
+                ${p.promotion_type === 'gift' ? `<div class="promotion-card-sub">Каждая ${Number(p.gift_every || 20)}-я единица — бесплатно</div>` : ''}
+                ${details ? `<p>${escapeHtml(details)}</p>` : ''}
+                ${participantNames ? `<div class="promotion-card-products">Участвуют: ${escapeHtml(participantNames)}${escapeHtml(more)}</div>` : ''}
+                ${dateText ? `<div class="promotion-card-date">📅 ${escapeHtml(dateText)}</div>` : ''}
+                <button type="button" class="promotion-more-btn" data-promo-index="${idx}">Подробнее →</button>
+            </div>
+        </article>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="promotion-section-header">
+            <div>
+                <div class="promotion-section-kicker">RILLY</div>
+                <h2>🏷️ Спецпредложения</h2>
+                <p>Выгодные условия на популярные товары и специальные программы для оптовых заказов.</p>
+            </div>
+            <span class="promotion-count">${active.length} ${active.length === 1 ? 'предложение' : 'предложения'}</span>
+        </div>
+        <div class="promotion-grid">${cards}</div>
+        <div class="promotion-note">ℹ️ Акции не суммируются. Если вам доступны несколько предложений, уточните у менеджера наиболее подходящий вариант.</div>`;
+
+    container.querySelectorAll('.promotion-more-btn').forEach(btn => {
+        btn.addEventListener('click', () => openPromotionDetails(active[Number(btn.dataset.promoIndex)]));
+    });
+}
+
+function openPromotionDetails(p) {
+    const modal = document.getElementById('promotionDetailsModal');
+    if (!modal || !p) return;
+    const participants = getPromotionParticipants(p);
+    document.getElementById('promotionDetailsTitle').textContent = p.name || 'Спецпредложение';
+    document.getElementById('promotionDetailsType').textContent = promotionTypeLabel(p);
+    document.getElementById('promotionDetailsText').textContent = p.details_text || p.condition_text || promotionShortText(p);
+    const list = document.getElementById('promotionDetailsProducts');
+    if (p.promotion_type === 'repeat_info' || p.promotion_type === 'info') {
+        list.innerHTML = '<div class="promotion-details-empty">Это информационное предложение. Уточняйте применение у менеджера.</div>';
+    } else {
+        list.innerHTML = participants.length
+            ? `<strong>Товары-участники:</strong><ul>${participants.map(x => `<li>${escapeHtml(x.name)} <span>(${escapeHtml(x.code)})</span></li>`).join('')}</ul>`
+            : '<div class="promotion-details-empty">Товары-участники не указаны.</div>';
+    }
+    const conditions = [];
+    if (p.min_quantity) conditions.push(`Минимальный объём: ${Number(p.min_quantity).toLocaleString('ru-RU')} шт.`);
+    if (p.promotion_type === 'gift') conditions.push(`Каждая ${Number(p.gift_every || 20)}-я единица — бесплатно.`);
+    if (p.promotion_type === 'repeat_info') conditions.push('Скидка 10% на повторный заказ. Минимальный объём — 4 000 шт. Срок — 3 месяца с даты первого заказа.');
+    if (p.start_date || p.end_date) conditions.push(`Срок: ${p.start_date ? new Date(p.start_date + 'T00:00:00').toLocaleDateString('ru-RU') : 'сейчас'}${p.end_date ? ` — ${new Date(p.end_date + 'T00:00:00').toLocaleDateString('ru-RU')}` : ''}`);
+    document.getElementById('promotionDetailsConditions').innerHTML = conditions.map(x => `<div>• ${escapeHtml(x)}</div>`).join('');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
 // ********** ОТРИСОВКА КАТАЛОГА **********
 function renderCatalog() {
     const container = document.getElementById('catalogContainer');
     container.innerHTML = '';
+    renderPromotionsCatalog();
     const categories = Object.keys(categoryMap);
 
     categories.forEach(catKey => {
@@ -28,10 +118,7 @@ function renderCatalog() {
 
             // Открытие карточки при клике
             card.addEventListener('click', function(e) {
-                // Не открываем модальное окно товара при работе с
-                // количеством, переключателем коробки/штуки и другими
-                // интерактивными элементами карточки.
-                if (e.target.closest('button, input, select, textarea, label, .card-actions, .order-row')) return;
+                if (e.target.closest('button') || e.target.closest('.card-actions') || e.target.closest('input') || e.target.closest('select') || e.target.closest('.order-row')) return;
                 openCardModal(globalIndex);
             });
 
@@ -55,6 +142,17 @@ card.appendChild(photoDiv);
 const photoContainer = photoDiv;
 const img = photoContainer.querySelector('img');
 const lens = photoContainer.querySelector('.zoom-lens');
+
+if (img) {
+    img.onerror = function() {
+        if (this.dataset.fallbackUsed === '1') {
+            this.parentElement.innerHTML = '<div class="no-photo">📷 Нет фото</div>';
+            return;
+        }
+        this.dataset.fallbackUsed = '1';
+        this.src = `images/${p.code}.jpg`;
+    };
+}
 
 if (img && lens && !img.hasAttribute('data-zoom-initialized')) {
     img.setAttribute('data-zoom-initialized', 'true');
@@ -112,6 +210,21 @@ if (img && lens && !img.hasAttribute('data-zoom-initialized')) {
             priceDiv.className = 'price';
             priceDiv.textContent = p.price.toFixed(2) + ' ₽ / шт';
             infoDiv.appendChild(priceDiv);
+
+            const displayPromotion = getDisplayPromotionForProduct(p);
+            if (displayPromotion) {
+                const promoDiv = document.createElement('div');
+                promoDiv.className = 'promotion-badge';
+                promoDiv.innerHTML = `🏷️ ${promotionLabel(p, displayPromotion)}`;
+                infoDiv.appendChild(promoDiv);
+            }
+            const giftPromotion = getGiftPromotionForProduct(p);
+            if (giftPromotion) {
+                const giftDiv = document.createElement('div');
+                giftDiv.className = 'promotion-badge promotion-badge-gift';
+                giftDiv.innerHTML = `🎁 От ${Number(giftPromotion.min_quantity || 0).toLocaleString('ru-RU')} шт. · каждая ${Number(giftPromotion.gift_every || 20)}-я — бесплатно`;
+                infoDiv.appendChild(giftDiv);
+            }
 
             const artShk = document.createElement('div');
             artShk.className = 'art-shk';
@@ -280,17 +393,36 @@ function openCardModal(index) {
     const product = products[index];
     if (!product) return;
 
-    document.getElementById('cardModalImg').src = `images/${product.code}.jpg`;
-    document.getElementById('cardModalImg').onerror = function() {
-        this.src = '';
-        this.alt = 'Нет фото';
-        this.style.display = 'none';
-        const parent = this.parentElement;
-        parent.innerHTML = '<div style="padding:40px; color:#8a7a6e; font-size:18px;">📷 Нет фото</div>';
+    const modalImg = document.getElementById('cardModalImg');
+    modalImg.style.display = 'block';
+    modalImg.dataset.fallbackUsed = '0';
+    modalImg.src = getProductImageUrl(product.code);
+    modalImg.onerror = function() {
+        if (this.dataset.fallbackUsed === '1') {
+            this.src = '';
+            this.alt = 'Нет фото';
+            this.style.display = 'none';
+            const parent = this.parentElement;
+            parent.innerHTML = '<div style="padding:40px; color:#8a7a6e; font-size:18px;">📷 Нет фото</div>';
+            return;
+        }
+        this.dataset.fallbackUsed = '1';
+        this.src = `images/${product.code}.jpg`;
     };
     document.getElementById('cardModalTitle').textContent = product.name;
     document.getElementById('cardModalDetails').textContent = product.size || 'Нет данных';
-    document.getElementById('cardModalPrice').textContent = product.price.toFixed(2) + ' ₽ / шт';
+    const modalPromotion = getDisplayPromotionForProduct(product);
+    document.getElementById('cardModalPrice').innerHTML = modalPromotion
+        ? `<span style="text-decoration:line-through;opacity:.55;">${product.price.toFixed(2)} ₽ / шт</span><br><strong>${modalPromotion.salePrice.toFixed(2)} ₽ / шт</strong><br><small>Экономия ${modalPromotion.savingPercent}%${Number(modalPromotion.min_quantity || 0) > 0 ? ` · от ${Number(modalPromotion.min_quantity).toLocaleString('ru-RU')} шт.` : ''}</small>`
+        : product.price.toFixed(2) + ' ₽ / шт';
+    const modalGift = getGiftPromotionForProduct(product);
+    const modalGiftNode = document.getElementById('cardModalPromotion');
+    if (modalGiftNode) {
+        modalGiftNode.innerHTML = modalGift
+            ? `🎁 <strong>Участвует в акции:</strong> от ${Number(modalGift.min_quantity || 0).toLocaleString('ru-RU')} шт. · каждая ${Number(modalGift.gift_every || 20)}-я бесплатно`
+            : '';
+        modalGiftNode.style.display = modalGift ? 'block' : 'none';
+    }
     document.getElementById('cardModalPack').textContent = product.pack;
     document.getElementById('cardModalPricePerPiece').textContent = product.price.toFixed(2);
     document.getElementById('cardModalArtShk').innerHTML = `
@@ -318,6 +450,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Корзина
+    const promoDetailsClose = document.getElementById('promotionDetailsClose');
+    if (promoDetailsClose) promoDetailsClose.addEventListener('click', () => { document.getElementById('promotionDetailsModal').classList.remove('show'); document.body.style.overflow = ''; });
+    const promoDetailsModal = document.getElementById('promotionDetailsModal');
+    if (promoDetailsModal) promoDetailsModal.addEventListener('click', e => { if (e.target === e.currentTarget) { e.currentTarget.classList.remove('show'); document.body.style.overflow = ''; } });
+
     document.getElementById('cartToggleBtn').addEventListener('click', function() {
         document.getElementById('cartPanel').classList.toggle('open');
     });
@@ -329,7 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('clearCartBtn').addEventListener('click', function() {
         if (cart.length === 0) return;
         if (confirm('Очистить корзину?')) {
-            cart = [];
+            cart.length = 0;
             saveCart();
             renderCatalog();
         }
@@ -342,25 +479,30 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const rows = [
-            ['Код товара', 'Наименование', 'Цена за шт (руб)', 'Количество (шт)', 'Штук в коробке', 'Сумма (руб)']
+            ['Код товара', 'Наименование', 'Цена без скидки (руб)', 'Скидка', 'Цена по акции (руб)', 'Количество (шт)', 'Штук в коробке', 'Сумма (руб)']
         ];
         let totalSum = 0;
 
         cart.forEach(item => {
-            const sum = item.qty * item.price;
+            const pricing = getCartPricing(item);
+            const sum = item.qty * pricing.salePrice;
             totalSum += sum;
+            const discount = pricing.promotion ? `${pricing.promotion.savingPercent}%` : '';
             rows.push([
                 item.code || '',
                 item.name || '',
-                item.price.toFixed(2),
+                pricing.basePrice.toFixed(2),
+                discount,
+                pricing.salePrice.toFixed(2),
                 item.qty,
-                item.pack,
+                pricing.product.pack,
                 sum.toFixed(2)
             ]);
         });
 
-        rows.push(['Итого', '', '', '', '', totalSum.toFixed(2)]);
+        rows.push(['Итого', '', '', '', '', '', '', totalSum.toFixed(2)]);
 
+        rows.push([]);
         rows.push([]);
         rows.push(['Дата заказа:', new Date().toLocaleString()]);
         rows.push(['Всего позиций:', cart.length]);

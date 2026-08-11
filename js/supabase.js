@@ -7,3 +7,9 @@ window.supabaseClient = window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY
 );
+
+
+// Публичный URL фотографии товара в Supabase Storage.
+window.getProductImageUrl = function(code) {
+    return `${SUPABASE_URL}/storage/v1/object/public/product-images/${encodeURIComponent(String(code))}.jpg`;
+};

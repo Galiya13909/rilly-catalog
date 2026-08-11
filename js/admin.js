@@ -1,5 +1,8 @@
 // ********** АДМИН-ПАНЕЛЬ **********
 let isAdmin = false;
+let selectedPhotoFile = null;
+let photoRemovePending = false;
+let originalProductCode = '';
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -78,11 +81,101 @@ async function deleteProductFromSupabase(id) {
     if (error) throw error;
 }
 
+async function storageFileExists(path) {
+    const { data, error } = await window.supabaseClient.storage.from('product-images').list('', { search: path });
+    if (error) return false;
+    return (data || []).some(file => file.name === path);
+}
+
+async function removeProductPhoto(code) {
+    if (!code) return;
+    const { error } = await window.supabaseClient.storage.from('product-images').remove([`${code}.jpg`]);
+    if (error) throw error;
+}
+
+async function moveProductPhoto(oldCode, newCode) {
+    if (!oldCode || !newCode || oldCode === newCode) return;
+    const bucket = window.supabaseClient.storage.from('product-images');
+    const exists = await storageFileExists(`${oldCode}.jpg`);
+    if (!exists) return;
+    const { error } = await bucket.move(`${oldCode}.jpg`, `${newCode}.jpg`);
+    if (error) throw error;
+}
+
+async function uploadProductPhoto(code, file) {
+    if (!code || !file) return;
+
+    // Всегда преобразуем выбранную картинку в JPEG, чтобы имя было строго code.jpg.
+    const blob = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                const maxSide = 1800;
+                const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+                canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Не удалось подготовить изображение.')), 'image/jpeg', 0.9);
+            };
+            img.onerror = () => reject(new Error('Не удалось прочитать изображение.'));
+            img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error('Не удалось прочитать файл.'));
+        reader.readAsDataURL(file);
+    });
+
+    const bucket = window.supabaseClient.storage.from('product-images');
+    const path = `${code}.jpg`;
+    const { error: removeError } = await bucket.remove([path]);
+    // Отсутствие старого файла не является ошибкой.
+    if (removeError && !String(removeError.message || '').toLowerCase().includes('not found')) throw removeError;
+
+    const { error } = await bucket.upload(path, blob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+        cacheControl: '3600'
+    });
+    if (error) throw error;
+
+    return window.getProductImageUrl(code) + `?v=${Date.now()}`;
+}
+
+function resetPhotoEditor() {
+    selectedPhotoFile = null;
+    photoRemovePending = false;
+    originalProductCode = '';
+    const input = document.getElementById('editPhoto');
+    if (input) input.value = '';
+    const status = document.getElementById('editPhotoStatus');
+    if (status) status.textContent = '';
+    const removeBtn = document.getElementById('removePhotoBtn');
+    if (removeBtn) removeBtn.style.display = 'none';
+}
+
+function setPhotoPreview(url, statusText = '') {
+    const preview = document.getElementById('editPhotoPreview');
+    if (!preview) return;
+    preview.innerHTML = url
+        ? `<img src="${escapeHtml(url)}" alt="Фото товара" style="max-width:100%; max-height:220px; object-fit:contain; display:block;" onerror="this.onerror=null; this.src='images/${escapeHtml(originalProductCode)}.jpg';">`
+        : '<span style="color:#8a9aa3;">Фото пока нет</span>';
+    const status = document.getElementById('editPhotoStatus');
+    if (status) status.textContent = statusText;
+    const removeBtn = document.getElementById('removePhotoBtn');
+    if (removeBtn) removeBtn.style.display = url ? 'inline-block' : 'none';
+}
+
 function openModal(productData, index) {
     const modal = document.getElementById('productModal');
     const modalTitle = document.getElementById('modalTitle');
     const deleteBtn = document.getElementById('deleteProductBtn');
     const editIndex = document.getElementById('editIndex');
+
+    resetPhotoEditor();
 
     if (productData) {
         modalTitle.textContent = '✏️ Редактирование товара';
@@ -96,11 +189,15 @@ function openModal(productData, index) {
         document.getElementById('editSize').value = productData.size || '';
         editIndex.value = index;
         deleteBtn.style.display = 'inline-block';
+        originalProductCode = productData.code;
+        const storageUrl = window.getProductImageUrl(productData.code);
+        setPhotoPreview(storageUrl, `Файл будет храниться как ${productData.code}.jpg`);
     } else {
         modalTitle.textContent = '➕ Добавление нового товара';
         document.getElementById('productForm').reset();
         editIndex.value = '-1';
         deleteBtn.style.display = 'none';
+        setPhotoPreview(null, 'После сохранения фото будет названо по коду товара.');
     }
     modal.classList.add('show');
 }
@@ -120,6 +217,7 @@ window.deleteProduct = async function(index) {
     if (!confirm(`Удалить товар "${product.name}"?`)) return;
     try {
         await deleteProductFromSupabase(product.id);
+        try { await removeProductPhoto(product.code); } catch (photoError) { console.warn('Фото не удалено:', photoError); }
         products.splice(index, 1);
         window.products = products;
         renderCatalog();
@@ -144,16 +242,26 @@ async function importDefaultProducts() {
     } catch (e) { alert('Не удалось импортировать товары: ' + e.message); }
 }
 
+function getPromotionSelectedProductIds(promotion) {
+    if (!promotion) return [];
+    const links = (window.promotionProducts || []).filter(x => Number(x.promotion_id) === Number(promotion.id));
+    if (links.length) return links.map(x => String(x.product_id));
+    if (promotion.product_id != null) return [String(promotion.product_id)];
+    return [];
+}
+
+function renderPromotionProductOptions(selectedIds = []) {
+    const select = document.getElementById('promotionProducts');
+    if (!select) return;
+    const selected = new Set(selectedIds.map(String));
+    select.innerHTML = products.map(p => `<option value="${p.id}" ${selected.has(String(p.id)) ? 'selected' : ''}>${escapeHtml(p.name)} · ${escapeHtml(p.code)}</option>`).join('');
+}
+
 function renderPromotionAdmin() {
-    const select = document.getElementById('promotionProduct');
-    if (select) {
-        const current = select.value;
-        select.innerHTML = '<option value="">🌐 Все товары</option>' + products.map(p => `<option value="${p.id}">${escapeHtml(p.name)} · ${escapeHtml(p.code)}</option>`).join('');
-        if ([...select.options].some(o => o.value === current)) select.value = current;
-    }
     const wrap = document.getElementById('promotionAdminList');
     if (!wrap) return;
     if (!isAdmin) { wrap.innerHTML = ''; return; }
+    renderPromotionProductOptions();
 
     if (!promotions.length) {
         wrap.innerHTML = '<p class="admin-empty">Акций пока нет.</p>';
@@ -161,18 +269,20 @@ function renderPromotionAdmin() {
     }
 
     wrap.innerHTML = promotions.map((p, i) => {
-        const product = p.product_id == null ? null : products.find(x => Number(x.id) === Number(p.product_id));
-        const target = product ? product.name : 'Все товары';
-        const value = p.discount_type === 'percent'
-            ? `${Number(p.discount_percent)}%`
-            : `${Number(p.fixed_price).toFixed(2)} ₽`;
-        const min = Number(p.min_quantity || 0) > 0 ? ` · от ${Number(p.min_quantity).toLocaleString('ru-RU')} шт.` : '';
+        const participants = getPromotionParticipants(p);
+        const target = participants.length === products.length ? 'Все товары' : `${participants.length} товар(ов)`;
         return `<div class="promotion-admin-item">
-            <div><strong>${escapeHtml(p.name || 'Акция')}</strong><br><span>${escapeHtml(target)}</span><br><span>${value}${min}</span>${p.condition_text ? `<br><small>${escapeHtml(p.condition_text)}</small>` : ''}</div>
+            <div>
+                <strong>${escapeHtml(p.name || 'Акция')}</strong><br>
+                <span>${escapeHtml(promotionTypeLabel(p))} · ${escapeHtml(promotionShortText(p))}</span><br>
+                <span>Участники: ${escapeHtml(target)}</span>
+                ${p.start_date || p.end_date ? `<br><small>${escapeHtml(p.start_date || 'сейчас')} — ${escapeHtml(p.end_date || 'без срока')}</small>` : ''}
+                ${p.condition_text ? `<br><small>${escapeHtml(p.condition_text)}</small>` : ''}
+            </div>
             <div class="promotion-admin-actions">
-                <button onclick="editPromotion(${i})">✏️</button>
-                <button onclick="togglePromotion(${i})">${p.is_active ? '🟢' : '🔴'}</button>
-                <button onclick="deletePromotion(${i})">🗑️</button>
+                <button type="button" onclick="editPromotion(${i})">✏️</button>
+                <button type="button" onclick="togglePromotion(${i})">${p.is_active ? '🟢' : '🔴'}</button>
+                <button type="button" onclick="deletePromotion(${i})">🗑️</button>
             </div>
         </div>`;
     }).join('');
@@ -182,13 +292,20 @@ function openPromotionModal(promotion = null, index = -1) {
     const modal = document.getElementById('promotionModal');
     document.getElementById('promotionEditIndex').value = index;
     document.getElementById('promotionName').value = promotion?.name || '';
-    document.getElementById('promotionProduct').value = promotion?.product_id ?? '';
+    document.getElementById('promotionKind').value = promotion?.promotion_type || 'price';
     document.getElementById('promotionType').value = promotion?.discount_type || 'percent';
     document.getElementById('promotionPercent').value = promotion?.discount_percent ?? '';
     document.getElementById('promotionFixed').value = promotion?.fixed_price ?? '';
     document.getElementById('promotionMinQty').value = promotion?.min_quantity ?? '';
+    document.getElementById('promotionMinQtyPrice').value = promotion?.min_quantity ?? '';
+    document.getElementById('promotionGiftEvery').value = promotion?.gift_every ?? 20;
     document.getElementById('promotionCondition').value = promotion?.condition_text || '';
+    document.getElementById('promotionDetails').value = promotion?.details_text || '';
+    document.getElementById('promotionStartDate').value = promotion?.start_date || '';
+    document.getElementById('promotionEndDate').value = promotion?.end_date || '';
+    document.getElementById('promotionDisplayOrder').value = promotion?.display_order ?? 100;
     document.getElementById('promotionActive').checked = promotion ? !!promotion.is_active : true;
+    renderPromotionProductOptions(getPromotionSelectedProductIds(promotion));
     updatePromotionFields();
     modal.classList.add('show');
 }
@@ -196,9 +313,14 @@ function openPromotionModal(promotion = null, index = -1) {
 function closePromotionModal() { document.getElementById('promotionModal').classList.remove('show'); }
 
 function updatePromotionFields() {
-    const type = document.getElementById('promotionType').value;
-    document.getElementById('percentField').style.display = type === 'percent' ? 'block' : 'none';
-    document.getElementById('fixedField').style.display = type === 'fixed' ? 'block' : 'none';
+    const kind = document.getElementById('promotionKind').value;
+    document.getElementById('priceTypeFields').style.display = kind === 'price' ? 'block' : 'none';
+    document.getElementById('giftTypeFields').style.display = kind === 'gift' ? 'block' : 'none';
+    document.getElementById('priceMinQtyField').style.display = kind === 'price' ? 'block' : 'none';
+    const details = document.getElementById('promotionDetails');
+    if (details && kind === 'repeat_info' && !details.value) {
+        details.value = 'Скидка 10% от прайсовой цены на повторный заказ. Минимальный объём — 4 000 шт. Срок действия — 3 месяца с даты первого заказа.';
+    }
 }
 
 window.editPromotion = function(index) { if (isAdmin) openPromotionModal(promotions[index], index); };
@@ -221,38 +343,65 @@ window.togglePromotion = async function(index) {
     renderCatalog();
 };
 
+async function syncPromotionProducts(promotionId, productIds) {
+    const { error: deleteError } = await window.supabaseClient.from('promotion_products').delete().eq('promotion_id', promotionId);
+    if (deleteError) throw deleteError;
+    if (!productIds.length) return;
+    const rows = productIds.map(productId => ({ promotion_id: promotionId, product_id: Number(productId) }));
+    const { error } = await window.supabaseClient.from('promotion_products').insert(rows);
+    if (error) throw error;
+}
+
 async function savePromotionFromForm() {
+    const kind = document.getElementById('promotionKind').value;
     const type = document.getElementById('promotionType').value;
     const percent = parseFloat(document.getElementById('promotionPercent').value);
     const fixed = parseFloat(document.getElementById('promotionFixed').value);
-    const minQtyRaw = document.getElementById('promotionMinQty').value;
-    const minQty = minQtyRaw === '' ? null : parseInt(minQtyRaw, 10);
+    const minQty = kind === 'gift'
+        ? parseInt(document.getElementById('promotionMinQty').value, 10)
+        : (kind === 'price' ? (document.getElementById('promotionMinQtyPrice').value === '' ? null : parseInt(document.getElementById('promotionMinQtyPrice').value, 10)) : null);
+    const giftEvery = kind === 'gift' ? parseInt(document.getElementById('promotionGiftEvery').value, 10) : null;
 
-    if (type === 'percent' && (isNaN(percent) || percent <= 0 || percent >= 100)) return alert('Укажите скидку от 0 до 100%.');
-    if (type === 'fixed' && (isNaN(fixed) || fixed < 0)) return alert('Укажите корректную фиксированную цену.');
-    if (minQty !== null && (isNaN(minQty) || minQty < 0)) return alert('Укажите корректное количество.');
+    if (kind === 'price' && type === 'percent' && (isNaN(percent) || percent <= 0 || percent >= 100)) return alert('Укажите скидку от 0 до 100%.');
+    if (kind === 'price' && type === 'fixed' && (isNaN(fixed) || fixed < 0)) return alert('Укажите корректную фиксированную цену.');
+    if (kind === 'gift' && (isNaN(minQty) || minQty < 1 || isNaN(giftEvery) || giftEvery < 2)) return alert('Для подарочной акции укажите минимальный объём и номер бесплатной единицы.');
+    if (minQty !== null && kind === 'price' && (isNaN(minQty) || minQty < 0)) return alert('Укажите корректное количество.');
 
-    const productValue = document.getElementById('promotionProduct').value;
+    const productIds = [...document.getElementById('promotionProducts').selectedOptions].map(o => o.value);
     const payload = {
-        product_id: productValue === '' ? null : Number(productValue),
+        product_id: null,
         name: document.getElementById('promotionName').value.trim() || 'Акция',
-        discount_type: type,
-        discount_percent: type === 'percent' ? percent : null,
-        fixed_price: type === 'fixed' ? fixed : null,
+        promotion_type: kind,
+        discount_type: kind === 'price' ? type : 'percent',
+        discount_percent: kind === 'price' && type === 'percent' ? percent : null,
+        fixed_price: kind === 'price' && type === 'fixed' ? fixed : null,
         min_quantity: minQty,
         condition_text: document.getElementById('promotionCondition').value.trim() || null,
+        details_text: document.getElementById('promotionDetails').value.trim() || null,
+        start_date: document.getElementById('promotionStartDate').value || null,
+        end_date: document.getElementById('promotionEndDate').value || null,
+        priority: 100,
+        gift_every: giftEvery,
+        display_order: parseInt(document.getElementById('promotionDisplayOrder').value, 10) || 100,
         is_active: document.getElementById('promotionActive').checked
     };
 
+    // Для обратной совместимости одиночную акцию сохраняем и в старое поле product_id.
+    if (productIds.length === 1) payload.product_id = Number(productIds[0]);
+
     const index = parseInt(document.getElementById('promotionEditIndex').value, 10);
     try {
+        let promotionId;
         if (index >= 0) {
-            const { error } = await window.supabaseClient.from('promotions').update(payload).eq('id', promotions[index].id);
+            promotionId = promotions[index].id;
+            const { error } = await window.supabaseClient.from('promotions').update(payload).eq('id', promotionId);
             if (error) throw error;
         } else {
-            const { error } = await window.supabaseClient.from('promotions').insert(payload);
+            const { data, error } = await window.supabaseClient.from('promotions').insert(payload).select().single();
             if (error) throw error;
+            promotionId = data.id;
         }
+        await syncPromotionProducts(promotionId, productIds);
         await loadPromotionsFromSupabase();
         closePromotionModal();
         renderPromotionAdmin();
@@ -295,7 +444,30 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!productData.code || !productData.name || isNaN(productData.price) || isNaN(productData.pack)) return alert('Заполните код, название, цену и количество в коробке.');
         const index = parseInt(document.getElementById('editIndex').value, 10);
         try {
-            const saved = await saveProductToSupabase(productData, index >= 0 ? products[index].id : null);
+            const oldProduct = index >= 0 ? products[index] : null;
+            const saved = await saveProductToSupabase(productData, oldProduct ? oldProduct.id : null);
+
+            try {
+                if (photoRemovePending && oldProduct) {
+                    await removeProductPhoto(oldProduct.code);
+                    if (oldProduct.code !== saved.code) {
+                        try { await removeProductPhoto(saved.code); } catch (_) {}
+                    }
+                } else if (selectedPhotoFile) {
+                    if (oldProduct && oldProduct.code !== saved.code) {
+                        try { await removeProductPhoto(oldProduct.code); } catch (_) {}
+                    }
+                    await uploadProductPhoto(saved.code, selectedPhotoFile);
+                } else if (oldProduct && oldProduct.code !== saved.code) {
+                    // Если код поменяли, автоматически переносим существующее фото.
+                    try { await moveProductPhoto(oldProduct.code, saved.code); } catch (moveError) {
+                        console.warn('Фото не перенесено:', moveError);
+                    }
+                }
+            } catch (photoError) {
+                alert('Товар сохранён, но с фотографией возникла проблема: ' + photoError.message);
+            }
+
             if (index >= 0) products[index] = saved;
             else products.push(saved);
             window.products = products;
@@ -305,12 +477,48 @@ document.addEventListener('DOMContentLoaded', async function() {
         } catch (e) { alert('Не удалось сохранить товар: ' + e.message); }
     });
 
+    document.getElementById('editPhoto').addEventListener('change', function() {
+        const file = this.files?.[0];
+        if (!file) return;
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            alert('Можно загружать только JPG, PNG или WEBP.');
+            this.value = '';
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Фото должно быть не больше 5 МБ.');
+            this.value = '';
+            return;
+        }
+        selectedPhotoFile = file;
+        photoRemovePending = false;
+        const url = URL.createObjectURL(file);
+        setPhotoPreview(url, `Новое фото будет сохранено как ${document.getElementById('editCode').value.trim() || 'КОД'}.jpg`);
+    });
+
+    document.getElementById('removePhotoBtn').addEventListener('click', function() {
+        selectedPhotoFile = null;
+        const input = document.getElementById('editPhoto');
+        if (input) input.value = '';
+        photoRemovePending = true;
+        setPhotoPreview(null, 'Фото будет удалено после сохранения товара.');
+    });
+
+    document.getElementById('editCode').addEventListener('input', function() {
+        const status = document.getElementById('editPhotoStatus');
+        if (!status) return;
+        const code = this.value.trim();
+        if (selectedPhotoFile) status.textContent = `Новое фото будет сохранено как ${code || 'КОД'}.jpg`;
+        else if (code) status.textContent = `Фото товара: ${code}.jpg`;
+    });
+
     document.getElementById('addProductBtn').addEventListener('click', () => openModal(null, -1));
     document.getElementById('importProductsBtn').addEventListener('click', importDefaultProducts);
     document.getElementById('addPromotionBtn').addEventListener('click', () => openPromotionModal());
     document.getElementById('promotionCancelBtn').addEventListener('click', closePromotionModal);
     document.getElementById('promotionModal').addEventListener('click', e => { if (e.target === e.currentTarget) closePromotionModal(); });
     document.getElementById('promotionType').addEventListener('change', updatePromotionFields);
+    document.getElementById('promotionKind').addEventListener('change', updatePromotionFields);
     document.getElementById('promotionForm').addEventListener('submit', async e => { e.preventDefault(); await savePromotionFromForm(); });
 
     window.supabaseClient.auth.onAuthStateChange(() => setTimeout(checkAdminSession, 0));
