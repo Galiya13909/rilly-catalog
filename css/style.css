@@ -1098,3 +1098,171 @@ body {
   .promotion-admin-item { flex-direction:column; align-items:stretch; }
   .promotion-admin-actions { justify-content:flex-end; }
 }
+
+/* ===== RILLY v3 — КАТАЛОГ АКЦИЙ ===== */
+.nav-btn-promotions {
+    background: linear-gradient(135deg, #fff1bf, #ffe0a3);
+    color: #765214 !important;
+    font-weight: 800;
+}
+
+.promotion-catalog {
+    max-width: 1400px;
+    margin: 0 auto 30px;
+    scroll-margin-top: 20px;
+}
+
+.promotion-section-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin: 10px 0 16px;
+    padding: 24px 26px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #fffaf0, #f4fbff);
+    border: 1px solid #eadfca;
+    box-shadow: 0 8px 28px rgba(11, 59, 79, .06);
+}
+
+.promotion-section-kicker {
+    font-size: 12px;
+    letter-spacing: 2px;
+    font-weight: 800;
+    color: #8b6412;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.promotion-section-header h2 {
+    color: #0b5a77;
+    font-size: clamp(24px, 4vw, 34px);
+    margin: 0 0 5px;
+}
+
+.promotion-section-header p {
+    color: #5a7e8f;
+    margin: 0;
+    max-width: 700px;
+}
+
+.promotion-count {
+    white-space: nowrap;
+    background: white;
+    border: 1px solid #e2d7c1;
+    border-radius: 30px;
+    padding: 8px 14px;
+    color: #765214;
+    font-weight: 700;
+}
+
+.promotion-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.promotion-card {
+    position: relative;
+    display: flex;
+    gap: 15px;
+    padding: 20px;
+    border-radius: 22px;
+    background: white;
+    border: 1px solid #dfe9ed;
+    box-shadow: 0 7px 22px rgba(11, 59, 79, .06);
+    overflow: hidden;
+}
+
+.promotion-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: #d8b24a;
+}
+.promotion-card-gift::before { background: #e0a343; }
+.promotion-card-repeat::before { background: #6c9fba; }
+.promotion-card-info::before { background: #8aa5b2; }
+
+.promotion-card-icon {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: #fff6dc;
+    font-size: 24px;
+}
+.promotion-card-gift .promotion-card-icon { background: #fff0dc; }
+.promotion-card-repeat .promotion-card-icon { background: #eaf5fa; }
+.promotion-card-info .promotion-card-icon { background: #edf4f6; }
+
+.promotion-card-body { min-width: 0; }
+.promotion-card-type {
+    color: #7d6b45;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 4px;
+}
+.promotion-card h3 { margin: 0 0 7px; color: #0b5a77; font-size: 19px; }
+.promotion-card-headline { font-size: 17px; font-weight: 800; color: #183f4f; }
+.promotion-card-sub { margin-top: 3px; color: #7c641d; font-weight: 700; }
+.promotion-card p { margin: 9px 0; color: #5a7e8f; line-height: 1.45; }
+.promotion-card-products, .promotion-card-date { margin-top: 8px; color: #667f8a; font-size: 13px; line-height: 1.4; }
+.promotion-more-btn {
+    margin-top: 13px;
+    border: 0;
+    background: transparent;
+    color: #0b5a77;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0;
+}
+.promotion-more-btn:hover { text-decoration: underline; }
+.promotion-note {
+    margin-top: 14px;
+    padding: 12px 15px;
+    border-radius: 14px;
+    background: #f6fafb;
+    color: #5a7e8f;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.card-modal-promotion {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #fff6dc;
+    color: #7d5c16;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.promotion-details-modal-content { max-width: 760px; }
+.promotion-details-inner { padding: 42px 28px 30px; }
+.promotion-details-inner h2 { color: #0b5a77; margin: 4px 0 12px; font-size: 27px; }
+.promotion-details-text { color: #405e6b; line-height: 1.6; white-space: pre-line; }
+.promotion-details-conditions { margin-top: 15px; color: #536f7b; line-height: 1.65; }
+.promotion-details-products { margin-top: 17px; color: #405e6b; line-height: 1.5; }
+.promotion-details-products ul { margin: 8px 0 0 20px; }
+.promotion-details-products li span { color: #7b929b; }
+.promotion-details-empty { color: #718892; }
+
+#promotionModal textarea { width: 100%; resize: vertical; border: 1px solid #cbdce3; border-radius: 10px; padding: 10px 12px; font: inherit; color: #0b3b4f; }
+#promotionProducts { min-height: 150px; padding: 7px; }
+.promotion-date-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.promotion-date-row > div { min-width:0; }
+
+@media (max-width: 700px) {
+    .promotion-section-header { align-items: flex-start; flex-direction: column; }
+    .promotion-card { padding: 17px; }
+    .promotion-date-row { grid-template-columns: 1fr; }
+}
