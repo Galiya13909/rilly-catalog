@@ -28,6 +28,7 @@
 
     <!-- НАВИГАЦИЯ -->
     <div class="nav-bar">
+        <a href="#promotionsCatalog" class="nav-btn nav-btn-promotions">🏷️ АКЦИИ</a>
         <a href="#kids" class="nav-btn">🧸 RILLY Kids</a>
         <a href="#body" class="nav-btn">🛁 Губки тела</a>
         <a href="#lappy" class="nav-btn">⚪ LAPPY</a>
@@ -59,6 +60,9 @@
         <div id="promotionAdminList" class="promotion-admin-list"></div>
     </div>
 
+    <!-- КАТАЛОГ АКЦИЙ -->
+    <section class="promotion-catalog" id="promotionsCatalog" style="display:none;"></section>
+
     <!-- КАТАЛОГ -->
     <div class="container" id="catalogContainer"></div>
 
@@ -76,34 +80,61 @@
                 <input type="hidden" id="promotionEditIndex" value="-1" />
 
                 <label>Название акции:</label>
-                <input type="text" id="promotionName" placeholder="Например: Оптовая цена AIRY" />
+                <input type="text" id="promotionName" placeholder="Например: Каждая 20-я — в подарок" required />
 
-                <label>Товар:</label>
-                <select id="promotionProduct">
-                    <option value="">🌐 Все товары</option>
+                <label>Тип предложения:</label>
+                <select id="promotionKind">
+                    <option value="price">💰 Спеццена / скидка</option>
+                    <option value="gift">🎁 Каждая N-я — бесплатно</option>
+                    <option value="repeat_info">🔄 Повторный заказ — информационное</option>
+                    <option value="info">ℹ️ Информационное предложение</option>
                 </select>
 
-                <label>Тип акции:</label>
-                <select id="promotionType">
-                    <option value="percent">📉 Скидка в процентах</option>
-                    <option value="fixed">💰 Фиксированная цена</option>
-                </select>
-
-                <div id="percentField">
-                    <label>Скидка (%):</label>
-                    <input type="number" id="promotionPercent" min="0.01" max="99.99" step="0.01" placeholder="12.5" />
+                <div id="priceTypeFields">
+                    <label>Механика цены:</label>
+                    <select id="promotionType">
+                        <option value="percent">📉 Скидка в процентах</option>
+                        <option value="fixed">💰 Фиксированная цена</option>
+                    </select>
+                    <div id="percentField">
+                        <label>Скидка (%):</label>
+                        <input type="number" id="promotionPercent" min="0.01" max="99.99" step="0.01" placeholder="12.5" />
+                    </div>
+                    <div id="fixedField" style="display:none;">
+                        <label>Цена по акции (руб/шт):</label>
+                        <input type="number" id="promotionFixed" min="0" step="0.01" placeholder="41.56" />
+                    </div>
                 </div>
 
-                <div id="fixedField" style="display:none;">
-                    <label>Цена по акции (руб/шт):</label>
-                    <input type="number" id="promotionFixed" min="0" step="0.01" placeholder="35.00" />
+                <div id="giftTypeFields" style="display:none;">
+                    <label>Минимальное количество:</label>
+                    <input type="number" id="promotionMinQty" min="1" step="1" placeholder="4000" />
+                    <label>Каждая какая по счёту бесплатная:</label>
+                    <input type="number" id="promotionGiftEvery" min="2" step="1" value="20" />
                 </div>
 
-                <label>Минимальное количество (необязательно):</label>
-                <input type="number" id="promotionMinQty" min="0" step="1" placeholder="5000" />
+                <div id="priceMinQtyField">
+                    <label>Минимальное количество (необязательно):</label>
+                    <input type="number" id="promotionMinQtyPrice" min="0" step="1" placeholder="5000" />
+                </div>
 
-                <label>Условие (необязательно):</label>
-                <input type="text" id="promotionCondition" placeholder="При заказе от 5000 шт." />
+                <label>Товары-участники:</label>
+                <select id="promotionProducts" multiple size="7"></select>
+                <small style="display:block;color:#5a7e8f;margin-top:5px;">Если ничего не выбрать — предложение действует на все товары.</small>
+
+                <label>Короткое условие:</label>
+                <input type="text" id="promotionCondition" placeholder="От 5 000 шт. — специальная цена" />
+
+                <label>Подробное описание:</label>
+                <textarea id="promotionDetails" rows="5" placeholder="Текст, который увидит покупатель в каталоге акций"></textarea>
+
+                <div class="promotion-date-row">
+                    <div><label>Начало:</label><input type="date" id="promotionStartDate" /></div>
+                    <div><label>Окончание:</label><input type="date" id="promotionEndDate" /></div>
+                </div>
+
+                <label>Порядок показа:</label>
+                <input type="number" id="promotionDisplayOrder" min="1" step="1" value="100" />
 
                 <label style="display:flex;align-items:center;gap:8px;flex-direction:row;">
                     <input type="checkbox" id="promotionActive" checked style="width:auto;"> Акция активна
@@ -191,12 +222,37 @@
                 <label>Размер/описание:</label>
                 <input type="text" id="editSize" required placeholder="130×80×35 мм" />
 
+                <div class="product-photo-editor" id="productPhotoEditor" style="margin-top:14px; padding:14px; border:1px solid #d9e6eb; border-radius:14px; background:#f8fbfc;">
+                    <label style="margin-top:0;">📷 Фото товара:</label>
+                    <div id="editPhotoPreview" style="min-height:120px; display:flex; align-items:center; justify-content:center; margin:8px 0; border-radius:12px; overflow:hidden; background:#fff;">
+                        <span style="color:#8a9aa3;">Фото пока нет</span>
+                    </div>
+                    <input type="file" id="editPhoto" accept="image/jpeg,image/png,image/webp" />
+                    <div id="editPhotoStatus" style="margin-top:7px; color:#5a7e8f; font-size:13px;"></div>
+                    <button type="button" id="removePhotoBtn" class="cancel-btn" style="margin-top:8px; display:none;">🗑️ Удалить фото</button>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="delete-btn-modal" id="deleteProductBtn" style="display:none;">🗑️ Удалить</button>
                     <button type="button" class="cancel-btn" id="modalCancelBtn">Отмена</button>
                     <button type="submit" class="save-btn">💾 Сохранить</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ПОДРОБНОСТЕЙ АКЦИИ -->
+    <div class="card-modal" id="promotionDetailsModal">
+        <div class="card-modal-content promotion-details-modal-content">
+            <button class="modal-close" id="promotionDetailsClose">✕</button>
+            <div class="promotion-details-inner">
+                <div class="promotion-card-type" id="promotionDetailsType"></div>
+                <h2 id="promotionDetailsTitle"></h2>
+                <div class="promotion-details-text" id="promotionDetailsText"></div>
+                <div class="promotion-details-conditions" id="promotionDetailsConditions"></div>
+                <div class="promotion-details-products" id="promotionDetailsProducts"></div>
+                <div class="promotion-note">Акции не суммируются. Если вам доступны несколько предложений, уточните условия у менеджера.</div>
+            </div>
         </div>
     </div>
 
@@ -212,6 +268,7 @@
                 <div class="modal-details" id="cardModalDetails"></div>
                 <div class="modal-price" id="cardModalPrice"></div>
                 <div class="modal-art-shk" id="cardModalArtShk"></div>
+                <div id="cardModalPromotion" class="card-modal-promotion" style="display:none;"></div>
                 <div style="margin-top:12px; padding-top:12px; border-top:1px solid #ede7e2;">
                     <p style="color:#8a7a6e; font-size:14px;">📦 В коробке: <span id="cardModalPack" style="font-weight:600; color:#4a3f3a;"></span> шт</p>
                     <p style="color:#8a7a6e; font-size:14px; margin-top:4px;">💳 Цена за штуку: <span id="cardModalPricePerPiece" style="font-weight:600; color:#8fb5a0;"></span> ₽</p>
@@ -222,12 +279,12 @@
 
     <!-- Подключаем JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase.js"></script>
-    <script src="js/products.js"></script>
-    <script src="js/cart.js"></script>
-    <script src="js/promotions.js"></script>
-    <script src="js/admin.js"></script>
-    <script src="js/catalog.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/supabase.js?v=rilly3"></script>
+    <script src="js/products.js?v=rilly3"></script>
+    <script src="js/cart.js?v=rilly3"></script>
+    <script src="js/promotions.js?v=rilly3"></script>
+    <script src="js/admin.js?v=rilly3"></script>
+    <script src="js/catalog.js?v=rilly3"></script>
+    <script src="js/main.js?v=rilly3"></script>
 </body>
 </html>
