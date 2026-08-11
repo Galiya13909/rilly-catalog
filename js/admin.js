@@ -250,11 +250,160 @@ function getPromotionSelectedProductIds(promotion) {
     return [];
 }
 
-function renderPromotionProductOptions(selectedIds = []) {
+const PROMOTION_CATEGORY_LABELS = {
+    kids: '🧸 RILLY Kids',
+    body: '🛁 Губки тела',
+    lappy: '⚪ LAPPY',
+    tressy: '🧴 TRESSY/TRIO',
+    terry: '🧴 TERRY/BIGGY',
+    teflon: '🧽 Teflon',
+    oval: '🥚 OVAL',
+    loty: '🍀 LOTY',
+    rubby: '🔴 RUBBY',
+    other_dishes: '🍽️ Прочие губки',
+    car: '🚗 Авто',
+    bath: '🛁 Ванна',
+    cloths: '🧹 Салфетки',
+    other: '🧴 Ватные палочки',
+    rope: '🧵 Веревка'
+};
+
+function syncPromotionPickerFromSelect() {
     const select = document.getElementById('promotionProducts');
     if (!select) return;
+    const selected = new Set([...select.selectedOptions].map(o => String(o.value)));
+    document.querySelectorAll('#promotionProductPicker input[data-product-id]').forEach(cb => {
+        cb.checked = selected.has(String(cb.dataset.productId));
+    });
+    const count = selected.size;
+    const countEl = document.getElementById('promotionSelectedCount');
+    if (countEl) countEl.textContent = count ? `Выбрано: ${count} ${pluralizeProducts(count)}` : 'Ничего не выбрано — акция действует на все товары';
+}
+
+function pluralizeProducts(n) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'товар';
+    if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) return 'товара';
+    return 'товаров';
+}
+
+function setPromotionProductsSelected(ids) {
+    const select = document.getElementById('promotionProducts');
+    if (!select) return;
+    const selected = new Set(ids.map(String));
+    [...select.options].forEach(o => { o.selected = selected.has(String(o.value)); });
+    syncPromotionPickerFromSelect();
+}
+
+function renderPromotionProductOptions(selectedIds = null) {
+    const select = document.getElementById('promotionProducts');
+    if (!select) return;
+
+    // Сохраняем текущий выбор, если функция вызвана без нового списка выбранных товаров.
+    if (selectedIds === null) selectedIds = [...select.selectedOptions].map(o => o.value);
     const selected = new Set(selectedIds.map(String));
+
     select.innerHTML = products.map(p => `<option value="${p.id}" ${selected.has(String(p.id)) ? 'selected' : ''}>${escapeHtml(p.name)} · ${escapeHtml(p.code)}</option>`).join('');
+    select.style.display = 'none';
+
+    let picker = document.getElementById('promotionProductPicker');
+    if (!picker) {
+        picker = document.createElement('div');
+        picker.id = 'promotionProductPicker';
+        select.insertAdjacentElement('afterend', picker);
+    }
+
+    const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+    picker.innerHTML = `
+        <div class="promotion-picker-top">
+            <div class="promotion-picker-search-row">
+                <input type="search" id="promotionProductSearch" class="promotion-picker-search" placeholder="🔎 Поиск по названию или коду..." autocomplete="off">
+                <span id="promotionSelectedCount" class="promotion-selected-count"></span>
+            </div>
+            <div class="promotion-picker-actions">
+                <button type="button" class="picker-action-btn" id="promotionSelectAll">Выбрать все</button>
+                <button type="button" class="picker-action-btn" id="promotionSelectVisible">Выбрать найденные</button>
+                <button type="button" class="picker-action-btn" id="promotionClearAll">Снять выбор</button>
+            </div>
+            <div class="promotion-category-filters">
+                <button type="button" class="promotion-category-btn active" data-category="all">Все</button>
+                ${categories.map(cat => `<button type="button" class="promotion-category-btn" data-category="${escapeHtml(cat)}">${escapeHtml(PROMOTION_CATEGORY_LABELS[cat] || cat)}</button>`).join('')}
+            </div>
+        </div>
+        <div class="promotion-product-list" id="promotionProductList"></div>
+    `;
+
+    const list = picker.querySelector('#promotionProductList');
+    const renderList = () => {
+        const query = (picker.querySelector('#promotionProductSearch')?.value || '').trim().toLowerCase();
+        const activeCategory = picker.querySelector('.promotion-category-btn.active')?.dataset.category || 'all';
+        const filtered = products.filter(p => {
+            const categoryOk = activeCategory === 'all' || p.category === activeCategory;
+            const haystack = `${p.name || ''} ${p.code || ''}`.toLowerCase();
+            return categoryOk && (!query || haystack.includes(query));
+        });
+
+        list.innerHTML = filtered.length ? filtered.map(p => {
+            const checked = selected.has(String(p.id));
+            return `<label class="promotion-product-option">
+                <input type="checkbox" data-product-id="${p.id}" ${checked ? 'checked' : ''}>
+                <span class="promotion-product-option-text">${escapeHtml(p.name)}<small>${escapeHtml(p.code)} · ${escapeHtml(PROMOTION_CATEGORY_LABELS[p.category] || p.category || '')}</small></span>
+            </label>`;
+        }).join('') : '<div class="promotion-picker-empty">Ничего не найдено</div>';
+    };
+
+    renderList();
+    syncPromotionPickerFromSelect();
+
+    picker.querySelector('#promotionProductSearch').addEventListener('input', renderList);
+    picker.querySelectorAll('.promotion-category-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            picker.querySelectorAll('.promotion-category-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderList();
+        });
+    });
+
+    list.addEventListener('change', e => {
+        const cb = e.target.closest('input[data-product-id]');
+        if (!cb) return;
+        const option = [...select.options].find(o => String(o.value) === String(cb.dataset.productId));
+        if (option) option.selected = cb.checked;
+        if (cb.checked) selected.add(String(cb.dataset.productId));
+        else selected.delete(String(cb.dataset.productId));
+        syncPromotionPickerFromSelect();
+    });
+
+    picker.querySelector('#promotionSelectAll').addEventListener('click', () => {
+        [...select.options].forEach(o => { o.selected = true; });
+        selected.clear();
+        [...select.options].forEach(o => selected.add(String(o.value)));
+        renderList();
+        syncPromotionPickerFromSelect();
+    });
+
+    picker.querySelector('#promotionSelectVisible').addEventListener('click', () => {
+        const query = (picker.querySelector('#promotionProductSearch')?.value || '').trim().toLowerCase();
+        const activeCategory = picker.querySelector('.promotion-category-btn.active')?.dataset.category || 'all';
+        products.filter(p => {
+            const categoryOk = activeCategory === 'all' || p.category === activeCategory;
+            const haystack = `${p.name || ''} ${p.code || ''}`.toLowerCase();
+            return categoryOk && (!query || haystack.includes(query));
+        }).forEach(p => {
+            const option = [...select.options].find(o => String(o.value) === String(p.id));
+            if (option) option.selected = true;
+            selected.add(String(p.id));
+        });
+        renderList();
+        syncPromotionPickerFromSelect();
+    });
+
+    picker.querySelector('#promotionClearAll').addEventListener('click', () => {
+        [...select.options].forEach(o => { o.selected = false; });
+        selected.clear();
+        renderList();
+        syncPromotionPickerFromSelect();
+    });
 }
 
 function renderPromotionAdmin() {
